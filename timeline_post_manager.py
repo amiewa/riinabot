@@ -1,5 +1,5 @@
 """
-タイムライン連動投稿マネージャー (Misskey.py 4.1.0 対応版)
+タイムライン連動投稿マネージャー (NGWordManager 統合版)
 タイムラインからキーワードを抽出し、それを使った投稿を自動生成
 """
 
@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from config import bot_config
+from ng_word_manager import get_ng_word_manager
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,12 @@ class TimelinePostManager:
         self.gemini = gemini
         self.db = db
         
+        # NGWordManager を取得
+        self.ng_word_manager = get_ng_word_manager()
+        
         # 設定読み込み
         self.enabled = bot_config.get("posting.timeline_post.enabled", False)
         self.source = bot_config.get("posting.timeline_post.source", "home")
-        self.ng_words = bot_config.get("posting.timeline_post.ng_words", [])
         self.min_keyword_length = bot_config.get("posting.timeline_post.min_keyword_length", 2)
         self.max_notes_fetch = bot_config.get("posting.timeline_post.max_notes_fetch", 20)
         
@@ -39,7 +42,12 @@ class TimelinePostManager:
         logger.info(f"📡 タイムライン連動投稿: {'有効' if self.enabled else '無効'}")
         if self.enabled:
             logger.info(f"📡 対象タイムライン: {self.source}")
-            logger.info(f"📡 NGワード: {len(self.ng_words)}件")
+            logger.info(f"📡 NGワード: {self.ng_word_manager.get_ng_word_count()}件")
+    
+    async def initialize(self):
+        """非同期初期化（外部NGワード読み込み）"""
+        await self.ng_word_manager.load_external_ng_words()
+        logger.info(f"📡 NGワード読み込み完了: {self.ng_word_manager.get_ng_word_count()}件")
     
     def _is_night_time(self) -> bool:
         """現在が夜間時間帯か判定"""
@@ -62,13 +70,10 @@ class TimelinePostManager:
         try:
             # Misskey.py 4.1.0 の正しいメソッドを使用
             if self.source == "home":
-                # ホームタイムライン
                 notes = self.misskey.client.notes_timeline(limit=self.max_notes_fetch)
             elif self.source == "local":
-                # ローカルタイムライン
                 notes = self.misskey.client.notes_local_timeline(limit=self.max_notes_fetch)
             elif self.source == "global":
-                # グローバルタイムライン
                 notes = self.misskey.client.notes_global_timeline(limit=self.max_notes_fetch)
             else:
                 logger.error(f"不正なタイムラインソース: {self.source}")
@@ -80,11 +85,9 @@ class TimelinePostManager:
             
             # notes が辞書の場合、リストに変換
             if isinstance(notes, dict):
-                # レスポンスが {"notes": [...]} 形式の場合
                 if "notes" in notes:
                     notes = notes["notes"]
                 else:
-                    # 辞書を1要素のリストとして扱う
                     notes = [notes]
             
             logger.info(f"✅ タイムライン取得成功: {len(notes)}件 ({self.source})")
@@ -116,17 +119,6 @@ class TimelinePostManager:
         
         return text
     
-    def _contains_ng_word(self, text: str) -> bool:
-        """
-        NGワードが含まれているかチェック
-        :param text: チェック対象テキスト
-        :return: NGワードが含まれていたら True
-        """
-        for ng_word in self.ng_words:
-            if ng_word.lower() in text.lower():
-                return True
-        return False
-    
     def _extract_keywords(self, notes: List[Dict[str, Any]]) -> List[str]:
         """
         ノートリストからキーワードを抽出
@@ -136,7 +128,7 @@ class TimelinePostManager:
         keywords = []
         
         for note in notes:
-            # text フィールドを取得（辞書または属性アクセス対応）
+            # text フィールドを取得
             if isinstance(note, dict):
                 text = note.get("text", "")
             else:
@@ -148,8 +140,8 @@ class TimelinePostManager:
             # テキストクリーニング
             cleaned_text = self._clean_text(text)
             
-            # NGワードチェック
-            if self._contains_ng_word(cleaned_text):
+            # NGワードチェック（NGWordManager 使用）
+            if self.ng_word_manager.contains_ng_word(cleaned_text):
                 continue
             
             # 短すぎるテキストはスキップ
@@ -163,7 +155,7 @@ class TimelinePostManager:
                 # 最小文字数チェック
                 if len(word) >= self.min_keyword_length:
                     # NGワードチェック
-                    if not self._contains_ng_word(word):
+                    if not self.ng_word_manager.contains_ng_word(word):
                         keywords.append(word)
         
         # 重複削除
@@ -193,7 +185,7 @@ class TimelinePostManager:
 
 投稿内容のみを出力してください（説明や前置きは不要）:"""
 
-            # Gemini API 呼び出し（system_instruction はすでに設定済み）
+            # Gemini API 呼び出し
             from google.genai import types
             config = types.GenerateContentConfig(
                 system_instruction=self.gemini.character_prompt,
@@ -268,8 +260,9 @@ class TimelinePostManager:
             note_id = await self.misskey.send_note(post_content)
             
             if note_id:
-                # データベースに記録
-                await self.db.add_post(note_id, "timeline", post_content)
+                # データベースに記録（note_id が文字列であることを確認）
+                note_id_str = str(note_id) if not isinstance(note_id, str) else note_id
+                await self.db.add_post(note_id_str, "timeline", post_content)
                 logger.info(f"✅ タイムライン連動投稿完了: {post_content[:50]}...")
             else:
                 logger.error("投稿の送信に失敗しました")

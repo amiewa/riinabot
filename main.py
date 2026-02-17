@@ -1,6 +1,6 @@
 """
 Misskeybot りいなちゃん - メインプログラム
-Phase 3.1: タイムライン連動投稿機能追加
+Phase 3.2: NGWordManager 統合版
 """
 
 import asyncio
@@ -24,7 +24,7 @@ from reply_manager import ReplyManager
 from streaming_manager import StreamingManager
 from database_maintenance import DatabaseMaintenance
 from log_maintenance import LogMaintenance
-from timeline_post_manager import TimelinePostManager  # ← 新規追加
+from timeline_post_manager import TimelinePostManager
 
 # ログ設定
 Path("logs").mkdir(exist_ok=True)
@@ -49,7 +49,7 @@ class RiinaBot:
         self.scheduled_post_manager = ScheduledPostManager(self.misskey, self.gemini, self.db)
         self.follow_manager = FollowManager(self.misskey, self.db)
         self.reply_manager = ReplyManager(self.misskey, self.gemini, self.db)
-        self.timeline_post_manager = TimelinePostManager(self.misskey, self.gemini, self.db)  # ← 新規追加
+        self.timeline_post_manager = TimelinePostManager(self.misskey, self.gemini, self.db)
         
         # WebSocketストリーミング
         self.streaming_manager = StreamingManager(
@@ -69,7 +69,11 @@ class RiinaBot:
         """非同期初期化"""
         await self.db.connect()
         await self.misskey.connect()
-        logger.info("=== りいなちゃんbot 起動 (Phase 3.1: Timeline Post) ===")
+        
+        # ★ タイムライン連動投稿の初期化（外部NGワード読み込み）
+        await self.timeline_post_manager.initialize()
+        
+        logger.info("=== りいなちゃんbot 起動 (Phase 3.2: NGWord Manager) ===")
     
     async def setup_scheduler(self):
         """スケジューラー設定"""
@@ -87,7 +91,7 @@ class RiinaBot:
         else:
             logger.info("⏸️  ランダム投稿: 無効")
         
-        # ★ タイムライン連動投稿 (新規追加)
+        # タイムライン連動投稿
         timeline_post_enabled = bot_config.get("posting.timeline_post.enabled", False)
         if timeline_post_enabled:
             interval_minutes = bot_config.get("posting.timeline_post.interval_minutes", 30)
@@ -148,7 +152,6 @@ class RiinaBot:
         # メンテナンスジョブ
         maintenance_enabled = bot_config.get("maintenance.enabled", True)
         if maintenance_enabled:
-            # 古いレコード削除 (毎日 03:00)
             cleanup_time = bot_config.get("maintenance.cleanup_time", "03:00")
             cleanup_days = bot_config.get("maintenance.cleanup_days", 30)
             hour, minute = cleanup_time.split(":")
@@ -160,7 +163,6 @@ class RiinaBot:
             )
             logger.info(f"✅ DB古いレコード削除: 毎日{cleanup_time} (>{cleanup_days}日前)")
             
-            # データベースバックアップ + 古いバックアップ削除 (毎日 04:00)
             backup_time = bot_config.get("maintenance.backup_time", "04:00")
             backup_compress = bot_config.get("maintenance.backup_compress", True)
             keep_backups = bot_config.get("maintenance.keep_backups", 7)
@@ -178,7 +180,6 @@ class RiinaBot:
             )
             logger.info(f"✅ DBバックアップ: 毎日{backup_time} (最新{keep_backups}個保持)")
             
-            # ログローテーション + 古いログ削除 (毎日 05:00)
             log_rotate_time = bot_config.get("maintenance.log_rotate_time", "05:00")
             log_cleanup_days = bot_config.get("maintenance.log_cleanup_days", 30)
             hour, minute = log_rotate_time.split(":")
@@ -195,7 +196,6 @@ class RiinaBot:
             )
             logger.info(f"✅ ログローテーション: 毎日{log_rotate_time} (>{log_cleanup_days}日前削除)")
             
-            # 統計情報ログ出力 (毎日 06:00)
             stats_time = bot_config.get("maintenance.stats_time", "06:00")
             hour, minute = stats_time.split(":")
             
@@ -222,16 +222,13 @@ class RiinaBot:
         await self.initialize()
         await self.setup_scheduler()
         
-        # 起動時に統計情報を表示
         await self.db_maintenance.log_database_stats()
         self.log_maintenance.log_stats()
         
-        # WebSocketストリーミング開始
         await self.streaming_manager.start()
         logger.info("✅ WebSocketリアルタイム監視: メンション・フォロー通知")
         logger.info("=== Bot起動完了 ===")
         
-        # 終了シグナルハンドラー
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(
@@ -239,7 +236,6 @@ class RiinaBot:
                 lambda: asyncio.create_task(self.stop())
             )
         
-        # メインループ
         while self.running:
             await asyncio.sleep(1)
     
@@ -248,14 +244,11 @@ class RiinaBot:
         logger.info("Bot停止中...")
         self.running = False
         
-        # 停止時にバックアップを作成
         logger.info("停止時バックアップを作成中...")
         await self.db_maintenance.backup_database(compress=True)
         
-        # WebSocketストリーミング停止
         await self.streaming_manager.stop()
         
-        # スケジューラーが起動していれば停止
         if self.scheduler.running:
             self.scheduler.shutdown()
         

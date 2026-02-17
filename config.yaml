@@ -92,6 +92,11 @@ posting:
       - "バカ"
       - "殺"
       - "うざい"
+    # ★ 外部NGワードリスト（URL指定）
+    ng_word_urls:
+      - "https://raw.githubusercontent.com/sayonari/goodBadWordlist/main/ja/BadList.txt"
+      # 複数のURLを指定可能
+      # - "https://example.com/another-ngword-list.txt"
 
 # フォロー管理
 follow:
