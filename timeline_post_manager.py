@@ -1,5 +1,5 @@
 """
-タイムライン連動投稿マネージャー (NGWordManager 統合版)
+タイムライン連動投稿マネージャー (記号除外版)
 タイムラインからキーワードを抽出し、それを使った投稿を自動生成
 """
 
@@ -119,6 +119,38 @@ class TimelinePostManager:
         
         return text
     
+    def _is_valid_keyword(self, word: str) -> bool:
+        """
+        キーワードが有効かどうかを判定
+        :param word: チェック対象の単語
+        :return: 有効なら True
+        """
+        # 空文字チェック
+        if not word:
+            return False
+        
+        # 最小文字数チェック
+        if len(word) < self.min_keyword_length:
+            return False
+        
+        # 記号で始まる単語を除外 (.day, #hashtag, $price など)
+        if word[0] in '.#@$%&*+-=/<>[]{}()!?~`|\\':
+            return False
+        
+        # 記号で終わる単語を除外
+        if word[-1] in '.#@$%&*+-=/<>[]{}()!?~`|\\':
+            return False
+        
+        # 数字のみの単語を除外 (123, 456 など)
+        if word.isdigit():
+            return False
+        
+        # NGワードチェック
+        if self.ng_word_manager.contains_ng_word(word):
+            return False
+        
+        return True
+    
     def _extract_keywords(self, notes: List[Dict[str, Any]]) -> List[str]:
         """
         ノートリストからキーワードを抽出
@@ -140,7 +172,7 @@ class TimelinePostManager:
             # テキストクリーニング
             cleaned_text = self._clean_text(text)
             
-            # NGワードチェック（NGWordManager 使用）
+            # NGワードチェック（全体）
             if self.ng_word_manager.contains_ng_word(cleaned_text):
                 continue
             
@@ -152,11 +184,9 @@ class TimelinePostManager:
             words = cleaned_text.split()
             
             for word in words:
-                # 最小文字数チェック
-                if len(word) >= self.min_keyword_length:
-                    # NGワードチェック
-                    if not self.ng_word_manager.contains_ng_word(word):
-                        keywords.append(word)
+                # 有効なキーワードかチェック
+                if self._is_valid_keyword(word):
+                    keywords.append(word)
         
         # 重複削除
         keywords = list(set(keywords))
