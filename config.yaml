@@ -79,6 +79,19 @@ posting:
         - "あったかい布団って最高の発明だよね〜 地元の冬を思い出す…"
         - "寝る前にちょっとだけおしゃべりしよ〜？ …5分だけだよ？"
         - "眠い〜…もうだめ…おやすみ…りいなは先に寝る…zzz"
+  
+  # ★ タイムライン連動投稿 (posting: の直下に配置)
+  timeline_post:
+    enabled: true                  # 有効/無効
+    source: "global"               # home/local/global (どのタイムラインを読むか)
+    interval_minutes: 5            # 実行間隔 (分)
+    max_notes_fetch: 20            # 取得するノート数
+    min_keyword_length: 2          # キーワードの最小文字数
+    ng_words:                      # NGワード (除外する単語)
+      - "死ね"
+      - "バカ"
+      - "殺"
+      - "うざい"
 
 # フォロー管理
 follow:
@@ -93,20 +106,6 @@ follow:
       - "followして"
       - "フォローお願い"
 
- # ★ タイムライン連動投稿 (新規追加)
-  timeline_post:
-    enabled: true                  # 有効/無効
-    source: "global"                 # home/local/global (どのタイムラインを読むか)
-    interval_minutes: 5           # 実行間隔 (分)
-    max_notes_fetch: 20            # 取得するノート数
-    min_keyword_length: 2          # キーワードの最小文字数
-    ng_words:                      # NGワード (除外する単語)
-      - "死ね"
-      - "バカ"
-      - "殺"
-      - "うざい"
-      # 必要に応じて追加
-      
 # リプライ設定
 reply:
   enabled: true
