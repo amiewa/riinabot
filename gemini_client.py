@@ -23,6 +23,7 @@ class GeminiClient:
         self.character_prompt = self._load_character_prompt()
         
         logger.info(f"✅ Gemini APIクライアント初期化完了 ({self.model_name})")
+        logger.info(f"📝 キャラクタープロンプト: {len(self.character_prompt)} 文字読み込み")
     
     def _load_character_prompt(self) -> str:
         """キャラクタープロンプトをファイルから読み込み"""
@@ -41,10 +42,8 @@ class GeminiClient:
         :return: 投稿テキスト (140文字以内) または None (エラー時)
         """
         try:
-            # プロンプト作成
-            prompt = f"""{self.character_prompt}
-
-以下の条件で、Misskeyに投稿する独り言を生成してください:
+            # ユーザープロンプト (system_instruction とは別)
+            user_prompt = """以下の条件で、Misskeyに投稿する独り言を生成してください:
 - 140文字以内
 - キャラクターらしい自然な口調
 - 日常的な内容、気分、考えていること
@@ -53,8 +52,9 @@ class GeminiClient:
 
 投稿内容のみを出力してください（説明や前置きは不要）:"""
 
-            # GenerateContentConfig を使用
+            # GenerateContentConfig を使用 (system_instruction として設定)
             config = types.GenerateContentConfig(
+                system_instruction=self.character_prompt,  # ← システムインストラクションとして設定
                 temperature=1.0,
                 max_output_tokens=200
             )
@@ -62,7 +62,7 @@ class GeminiClient:
             # generate_content を使用
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=prompt,
+                contents=user_prompt,  # ← ユーザープロンプトのみ
                 config=config
             )
             
@@ -89,10 +89,8 @@ class GeminiClient:
         :return: リプライテキスト (140文字以内) または None (エラー時)
         """
         try:
-            # プロンプト作成
-            prompt = f"""{self.character_prompt}
-
-@{username} さんからのメンション:
+            # ユーザープロンプト
+            user_prompt = f"""@{username} さんからのメンション:
 「{user_message}」
 
 以下の条件で返信を生成してください:
@@ -104,8 +102,9 @@ class GeminiClient:
 
 返信内容のみを出力してください（説明や前置きは不要）:"""
 
-            # GenerateContentConfig を使用
+            # GenerateContentConfig を使用 (system_instruction として設定)
             config = types.GenerateContentConfig(
+                system_instruction=self.character_prompt,  # ← システムインストラクション
                 temperature=1.0,
                 max_output_tokens=200
             )
@@ -113,7 +112,7 @@ class GeminiClient:
             # generate_content を使用
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=prompt,
+                contents=user_prompt,
                 config=config
             )
             
