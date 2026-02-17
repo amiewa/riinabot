@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""
-フォロワー情報を Misskey API から強制同期するスクリプト
-"""
 import asyncio
 from database import Database
 from misskey_client import MisskeyClient
 from follow_manager import FollowManager
 
 async def sync():
-    print("=" * 60)
     print("🔄 フォロワー強制同期")
-    print("=" * 60)
     
     db = Database()
     await db.connect()
@@ -31,16 +26,13 @@ async def sync():
         row = await cursor.fetchone()
         total = row[0]
     
-    async with db.db.execute(
-        "SELECT COUNT(*) FROM followers WHERE is_following_back = 1"
-    ) as cursor:
+    async with db.db.execute("SELECT COUNT(*) FROM followers WHERE is_following_back = 1") as cursor:
         row = await cursor.fetchone()
         mutual = row[0]
     
     print(f"📊 同期結果: フォロワー {total}人, 相互フォロー {mutual}人")
     
     await db.close()
-    print("=" * 60)
 
 if __name__ == "__main__":
     asyncio.run(sync())

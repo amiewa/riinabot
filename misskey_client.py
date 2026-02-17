@@ -14,7 +14,6 @@ class MisskeyClient:
     async def connect(self):
         """Misskey接続確認とユーザー情報取得"""
         try:
-            # Misskey.py 4.1.0 の i() は同期メソッド（await 不要）
             user_info = self.client.i()
             logger.info(f"Misskey接続成功: @{user_info.get('username', 'unknown')}")
             return user_info
@@ -25,16 +24,19 @@ class MisskeyClient:
     async def get_followers(self, limit: int = 100):
         """フォロワー一覧取得"""
         try:
-            response = self.client.users_followers(limit=limit)
+            # Misskey.py 4.1.0 の正しいパラメータ: userId（自分のID）が必要
+            user_info = self.client.i()
+            user_id = user_info.get("id")
+            
+            response = self.client.users_followers(userId=user_id, limit=limit)
             
             if isinstance(response, list):
                 follower_list = []
                 for item in response:
                     if isinstance(item, dict):
-                        user = item.get("followee") or item.get("follower") or item
-                        follower_list.append(user)
-                    else:
-                        follower_list.append(item)
+                        user = item.get("follower")
+                        if user:
+                            follower_list.append(user)
                 
                 logger.debug(f"フォロワー取得: {len(follower_list)}人")
                 return follower_list
@@ -48,16 +50,18 @@ class MisskeyClient:
     async def get_following(self, limit: int = 100):
         """フォロー中一覧取得"""
         try:
-            response = self.client.users_following(limit=limit)
+            user_info = self.client.i()
+            user_id = user_info.get("id")
+            
+            response = self.client.users_following(userId=user_id, limit=limit)
             
             if isinstance(response, list):
                 following_list = []
                 for item in response:
                     if isinstance(item, dict):
-                        user = item.get("followee") or item
-                        following_list.append(user)
-                    else:
-                        following_list.append(item)
+                        user = item.get("followee")
+                        if user:
+                            following_list.append(user)
                 
                 logger.debug(f"フォロー中取得: {len(following_list)}人")
                 return following_list
