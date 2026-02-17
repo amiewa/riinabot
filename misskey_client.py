@@ -8,6 +8,7 @@ class MisskeyClient:
     def __init__(self):
         self.client = Misskey(settings.misskey_instance_url, i=settings.misskey_api_token)
         self.default_visibility = bot_config.get("posting.default_visibility", "home")
+        self.bot_user_id = None
         logger.info(f"Misskey APIクライアント初期化: {settings.misskey_instance_url}")
         logger.info(f"デフォルト投稿先: {self.default_visibility}")
     
@@ -15,6 +16,7 @@ class MisskeyClient:
         """Misskey接続確認とユーザー情報取得"""
         try:
             user_info = self.client.i()
+            self.bot_user_id = user_info.get("id")
             logger.info(f"Misskey接続成功: @{user_info.get('username', 'unknown')}")
             return user_info
         except Exception as e:
@@ -24,11 +26,11 @@ class MisskeyClient:
     async def get_followers(self, limit: int = 100):
         """フォロワー一覧取得"""
         try:
-            # Misskey.py 4.1.0 の正しいパラメータ: userId（自分のID）が必要
-            user_info = self.client.i()
-            user_id = user_info.get("id")
+            if not self.bot_user_id:
+                user_info = self.client.i()
+                self.bot_user_id = user_info.get("id")
             
-            response = self.client.users_followers(userId=user_id, limit=limit)
+            response = self.client.users_followers(user_id=self.bot_user_id, limit=limit)
             
             if isinstance(response, list):
                 follower_list = []
@@ -50,10 +52,11 @@ class MisskeyClient:
     async def get_following(self, limit: int = 100):
         """フォロー中一覧取得"""
         try:
-            user_info = self.client.i()
-            user_id = user_info.get("id")
+            if not self.bot_user_id:
+                user_info = self.client.i()
+                self.bot_user_id = user_info.get("id")
             
-            response = self.client.users_following(userId=user_id, limit=limit)
+            response = self.client.users_following(user_id=self.bot_user_id, limit=limit)
             
             if isinstance(response, list):
                 following_list = []
@@ -113,7 +116,7 @@ class MisskeyClient:
         try:
             response = self.client.i_notifications(
                 limit=limit,
-                includeTypes=["mention", "reply"]
+                include_types=["mention", "reply"]
             )
             
             mentions = []
