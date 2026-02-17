@@ -145,7 +145,7 @@ class ReplyManager:
                 return
             
             # Misskeyにリプライ投稿
-            await self.misskey.reply_to_note(mention_id, reply_text)
+            await self.misskey.send_note(reply_text, reply_id=mention_id)
             
             # レート制限記録
             await self.rate_limiter.record_reply(user_id)
