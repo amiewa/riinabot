@@ -1,5 +1,5 @@
 """
-Gemini APIクライアント (新ライブラリ版)
+Gemini APIクライアント (新ライブラリ版 - デバッグ強化版)
 google.genai を使用 (google.generativeai からの移行)
 """
 
@@ -69,12 +69,16 @@ class GeminiClient:
             # テキスト取得
             content = response.text.strip()
             
+            # 🔍 デバッグ: 生成された完全なテキストをログ出力
+            logger.info(f"🔍 Gemini応答 (生): 文字数={len(content)} 文字")
+            logger.info(f"🔍 Gemini応答 (全文): {repr(content)}")  # repr で改行も表示
+            
             # 140文字超過チェック
             if len(content) > 140:
+                logger.warning(f"⚠️ 生成テキストが140文字を超過 ({len(content)}文字): 切り詰めます")
                 content = content[:140]
-                logger.warning(f"生成テキストが140文字を超過: 切り詰めました")
             
-            logger.info(f"✅ ランダム投稿生成成功: {content[:50]}...")
+            logger.info(f"✅ ランダム投稿生成成功 ({len(content)}文字): {content}")
             return content
             
         except Exception as e:
@@ -110,6 +114,7 @@ class GeminiClient:
             )
             
             # generate_content を使用
+            logger.info(f"🔍 Gemini リクエスト送信: @{username} へのリプライ")
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
@@ -119,14 +124,24 @@ class GeminiClient:
             # テキスト取得
             content = response.text.strip()
             
+            # 🔍 デバッグ: 生成された完全なテキストをログ出力
+            logger.info(f"🔍 Gemini応答 (生): 文字数={len(content)} 文字")
+            logger.info(f"🔍 Gemini応答 (全文): {repr(content)}")  # repr で改行・特殊文字も表示
+            
+            # 改行チェック
+            if '\n' in content:
+                logger.warning(f"⚠️ 改行が含まれています: 改行を削除します")
+                content = content.replace('\n', ' ')
+            
             # 140文字超過チェック
             if len(content) > 140:
+                logger.warning(f"⚠️ 生成テキストが140文字を超過 ({len(content)}文字): 切り詰めます")
                 content = content[:140]
-                logger.warning(f"生成テキストが140文字を超過: 切り詰めました")
             
-            logger.info(f"✅ リプライ生成成功: {content[:50]}...")
+            logger.info(f"✅ リプライ生成成功 ({len(content)}文字): {content}")
             return content
             
         except Exception as e:
             logger.error(f"❌ Gemini API エラー (リプライ): {e}")
+            logger.exception("詳細エラー:")  # スタックトレースも出力
             return None
