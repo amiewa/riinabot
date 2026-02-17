@@ -9,7 +9,7 @@ posting:
   default_visibility: "home"  # home / public / followers / specified
   
   night_mode:
-    enabled: false
+    enabled: true
     start_hour: 23
     end_hour: 5
   
@@ -84,7 +84,7 @@ posting:
   timeline_post:
     enabled: true                  # 有効/無効
     source: "global"               # home/local/global (どのタイムラインを読むか)
-    interval_minutes: 3          # 実行間隔 (分)
+    interval_minutes: 120          # 実行間隔 (分)
     max_notes_fetch: 20            # 取得するノート数
     min_keyword_length: 2          # キーワードの最小文字数
     ng_words:                      # NGワード (除外する単語)
