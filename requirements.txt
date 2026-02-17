@@ -22,3 +22,7 @@ PyYAML
 # 設定管理
 pydantic
 pydantic-settings
+
+# HTTP クライアント（NGワードリスト取得用）
+aiohttp
+
