@@ -1,5 +1,5 @@
 """
-Gemini APIクライアント (新ライブラリ版 - デバッグ強化版)
+Gemini APIクライアント (新ライブラリ版 - 出力長調整版)
 google.genai を使用 (google.generativeai からの移行)
 """
 
@@ -54,28 +54,32 @@ class GeminiClient:
 
             # GenerateContentConfig を使用 (system_instruction として設定)
             config = types.GenerateContentConfig(
-                system_instruction=self.character_prompt,  # ← システムインストラクションとして設定
+                system_instruction=self.character_prompt,
                 temperature=1.0,
-                max_output_tokens=200
+                max_output_tokens=512  # ← 200→512 に増量 (日本語は1文字=2〜3トークン)
             )
             
             # generate_content を使用
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=user_prompt,  # ← ユーザープロンプトのみ
+                contents=user_prompt,
                 config=config
             )
             
             # テキスト取得
             content = response.text.strip()
             
-            # 🔍 デバッグ: 生成された完全なテキストをログ出力
-            logger.info(f"🔍 Gemini応答 (生): 文字数={len(content)} 文字")
-            logger.info(f"🔍 Gemini応答 (全文): {repr(content)}")  # repr で改行も表示
+            # デバッグログ
+            logger.info(f"🔍 Gemini応答: {len(content)}文字")
+            
+            # 改行削除
+            if '\n' in content:
+                logger.warning(f"⚠️ 改行を削除")
+                content = content.replace('\n', ' ').replace('  ', ' ')
             
             # 140文字超過チェック
             if len(content) > 140:
-                logger.warning(f"⚠️ 生成テキストが140文字を超過 ({len(content)}文字): 切り詰めます")
+                logger.warning(f"⚠️ {len(content)}文字を140文字に切り詰め")
                 content = content[:140]
             
             logger.info(f"✅ ランダム投稿生成成功 ({len(content)}文字): {content}")
@@ -93,24 +97,25 @@ class GeminiClient:
         :return: リプライテキスト (140文字以内) または None (エラー時)
         """
         try:
-            # ユーザープロンプト
+            # ユーザープロンプト (短すぎるのを防ぐため、目安を明示)
             user_prompt = f"""@{username} さんからのメンション:
 「{user_message}」
 
 以下の条件で返信を生成してください:
-- 140文字以内
+- 50〜120文字程度 (短すぎず、長すぎず)
 - キャラクターらしい自然な口調
 - メッセージ内容に適切に応答
 - 親しみやすく、ポジティブな返信
-- 絵文字を適度に使用
+- 絵文字は控えめに (プロンプトのルールに従う)
 
 返信内容のみを出力してください（説明や前置きは不要）:"""
 
             # GenerateContentConfig を使用 (system_instruction として設定)
             config = types.GenerateContentConfig(
-                system_instruction=self.character_prompt,  # ← システムインストラクション
+                system_instruction=self.character_prompt,
                 temperature=1.0,
-                max_output_tokens=200
+                max_output_tokens=512,  # ← 200→512 に増量
+                candidate_count=1  # 候補数は1つ
             )
             
             # generate_content を使用
@@ -124,18 +129,21 @@ class GeminiClient:
             # テキスト取得
             content = response.text.strip()
             
-            # 🔍 デバッグ: 生成された完全なテキストをログ出力
-            logger.info(f"🔍 Gemini応答 (生): 文字数={len(content)} 文字")
-            logger.info(f"🔍 Gemini応答 (全文): {repr(content)}")  # repr で改行・特殊文字も表示
+            # デバッグログ
+            logger.info(f"🔍 Gemini応答: {len(content)}文字 - {repr(content)}")
             
-            # 改行チェック
+            # 改行削除
             if '\n' in content:
-                logger.warning(f"⚠️ 改行が含まれています: 改行を削除します")
-                content = content.replace('\n', ' ')
+                logger.warning(f"⚠️ 改行を削除")
+                content = content.replace('\n', ' ').replace('  ', ' ')
+            
+            # 短すぎるチェック (10文字未満は異常)
+            if len(content) < 10:
+                logger.warning(f"⚠️ 生成テキストが短すぎます ({len(content)}文字): 再生成が必要かも")
             
             # 140文字超過チェック
             if len(content) > 140:
-                logger.warning(f"⚠️ 生成テキストが140文字を超過 ({len(content)}文字): 切り詰めます")
+                logger.warning(f"⚠️ {len(content)}文字を140文字に切り詰め")
                 content = content[:140]
             
             logger.info(f"✅ リプライ生成成功 ({len(content)}文字): {content}")
@@ -143,5 +151,5 @@ class GeminiClient:
             
         except Exception as e:
             logger.error(f"❌ Gemini API エラー (リプライ): {e}")
-            logger.exception("詳細エラー:")  # スタックトレースも出力
+            logger.exception("詳細エラー:")
             return None
