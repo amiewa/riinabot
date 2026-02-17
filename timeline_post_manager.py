@@ -1,5 +1,5 @@
 """
-タイムライン連動投稿マネージャー
+タイムライン連動投稿マネージャー (Misskey.py 4.1.0 対応版)
 タイムラインからキーワードを抽出し、それを使った投稿を自動生成
 """
 
@@ -60,31 +60,39 @@ class TimelinePostManager:
         :return: ノートのリスト
         """
         try:
+            # Misskey.py 4.1.0 の正しいメソッドを使用
             if self.source == "home":
-                endpoint = "notes/timeline"
+                # ホームタイムライン
+                notes = self.misskey.client.notes_timeline(limit=self.max_notes_fetch)
             elif self.source == "local":
-                endpoint = "notes/local-timeline"
+                # ローカルタイムライン
+                notes = self.misskey.client.notes_local_timeline(limit=self.max_notes_fetch)
             elif self.source == "global":
-                endpoint = "notes/global-timeline"
+                # グローバルタイムライン
+                notes = self.misskey.client.notes_global_timeline(limit=self.max_notes_fetch)
             else:
                 logger.error(f"不正なタイムラインソース: {self.source}")
                 return []
             
-            # Misskey API でタイムライン取得
-            notes = self.misskey.client.request(
-                endpoint,
-                json={"limit": self.max_notes_fetch}
-            )
-            
             if not notes:
                 logger.warning(f"タイムライン取得結果が空: {self.source}")
                 return []
+            
+            # notes が辞書の場合、リストに変換
+            if isinstance(notes, dict):
+                # レスポンスが {"notes": [...]} 形式の場合
+                if "notes" in notes:
+                    notes = notes["notes"]
+                else:
+                    # 辞書を1要素のリストとして扱う
+                    notes = [notes]
             
             logger.info(f"✅ タイムライン取得成功: {len(notes)}件 ({self.source})")
             return notes
             
         except Exception as e:
             logger.error(f"タイムライン取得エラー: {e}")
+            logger.exception("詳細:")
             return []
     
     def _clean_text(self, text: str) -> str:
@@ -128,7 +136,12 @@ class TimelinePostManager:
         keywords = []
         
         for note in notes:
-            text = note.get("text", "")
+            # text フィールドを取得（辞書または属性アクセス対応）
+            if isinstance(note, dict):
+                text = note.get("text", "")
+            else:
+                text = getattr(note, "text", "")
+            
             if not text:
                 continue
             
@@ -157,6 +170,8 @@ class TimelinePostManager:
         keywords = list(set(keywords))
         
         logger.info(f"🔍 キーワード抽出: {len(keywords)}個")
+        if keywords:
+            logger.debug(f"抽出されたキーワード例: {keywords[:10]}")
         return keywords
     
     async def generate_post_from_keyword(self, keyword: str) -> Optional[str]:
@@ -171,7 +186,7 @@ class TimelinePostManager:
 りいなちゃんらしい独り言を生成してください。
 
 以下の条件を守ってください:
-- 140文字以内
+- 50〜120文字程度
 - キーワードに対する感想・コメント
 - 誰かに話しかけているわけではない独り言トーン
 - 自然でキャラクターらしい口調
@@ -207,6 +222,7 @@ class TimelinePostManager:
             
         except Exception as e:
             logger.error(f"タイムライン連動投稿生成エラー: {e}")
+            logger.exception("詳細:")
             return None
     
     async def post_timeline_based(self):
