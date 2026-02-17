@@ -1,6 +1,6 @@
 """
 Misskeybot りいなちゃん - メインプログラム
-Phase 3: データベース＋ログメンテナンス機能
+Phase 3.1: タイムライン連動投稿機能追加
 """
 
 import asyncio
@@ -24,6 +24,7 @@ from reply_manager import ReplyManager
 from streaming_manager import StreamingManager
 from database_maintenance import DatabaseMaintenance
 from log_maintenance import LogMaintenance
+from timeline_post_manager import TimelinePostManager  # ← 新規追加
 
 # ログ設定
 Path("logs").mkdir(exist_ok=True)
@@ -48,6 +49,7 @@ class RiinaBot:
         self.scheduled_post_manager = ScheduledPostManager(self.misskey, self.gemini, self.db)
         self.follow_manager = FollowManager(self.misskey, self.db)
         self.reply_manager = ReplyManager(self.misskey, self.gemini, self.db)
+        self.timeline_post_manager = TimelinePostManager(self.misskey, self.gemini, self.db)  # ← 新規追加
         
         # WebSocketストリーミング
         self.streaming_manager = StreamingManager(
@@ -67,7 +69,7 @@ class RiinaBot:
         """非同期初期化"""
         await self.db.connect()
         await self.misskey.connect()
-        logger.info("=== りいなちゃんbot 起動 (Phase 3: Maintenance) ===")
+        logger.info("=== りいなちゃんbot 起動 (Phase 3.1: Timeline Post) ===")
     
     async def setup_scheduler(self):
         """スケジューラー設定"""
@@ -84,6 +86,21 @@ class RiinaBot:
             logger.info(f"✅ ランダム投稿: {interval_minutes}分ごと")
         else:
             logger.info("⏸️  ランダム投稿: 無効")
+        
+        # ★ タイムライン連動投稿 (新規追加)
+        timeline_post_enabled = bot_config.get("posting.timeline_post.enabled", False)
+        if timeline_post_enabled:
+            interval_minutes = bot_config.get("posting.timeline_post.interval_minutes", 30)
+            self.scheduler.add_job(
+                self.timeline_post_manager.post_timeline_based,
+                trigger=IntervalTrigger(minutes=interval_minutes),
+                id='timeline_post',
+                name='タイムライン連動投稿'
+            )
+            source = bot_config.get("posting.timeline_post.source", "home")
+            logger.info(f"✅ タイムライン連動投稿: {interval_minutes}分ごと (対象: {source})")
+        else:
+            logger.info("⏸️  タイムライン連動投稿: 無効")
         
         # フォロー状態チェック
         follow_check_interval = bot_config.get("follow.check_interval_minutes", 30)
