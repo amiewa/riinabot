@@ -102,7 +102,7 @@ class MisskeyClient:
             }
             
             if reply_id:
-                params["replyId"] = reply_id
+                params["reply_id"] = reply_id
             
             response = self.client.notes_create(**params)
             logger.info(f"ノート投稿成功: {text[:30]}...")
