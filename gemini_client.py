@@ -1,5 +1,5 @@
 """
-Gemini APIクライアント (新ライブラリ版 - レスポンス詳細診断版)
+Gemini APIクライアント (新ライブラリ版 - MAX_TOKENS 問題修正版)
 google.genai を使用 (google.generativeai からの移行)
 """
 
@@ -56,7 +56,7 @@ class GeminiClient:
             config = types.GenerateContentConfig(
                 system_instruction=self.character_prompt,
                 temperature=1.0,
-                max_output_tokens=512
+                max_output_tokens=1024  # ← 512→1024 に増量（日本語は1文字=4〜5トークン）
             )
             
             # generate_content を使用
@@ -66,24 +66,20 @@ class GeminiClient:
                 config=config
             )
             
-            # 🔍 レスポンス詳細をデバッグ
-            logger.info(f"🔍 Gemini レスポンス型: {type(response)}")
-            logger.info(f"🔍 finish_reason: {response.candidates[0].finish_reason if response.candidates else 'N/A'}")
+            # finish_reason チェック
+            if response.candidates and response.candidates[0].finish_reason != types.FinishReason.STOP:
+                logger.warning(f"⚠️ finish_reason: {response.candidates[0].finish_reason}")
             
             # テキスト取得
             content = response.text.strip()
             
-            # デバッグログ
-            logger.info(f"🔍 Gemini応答: {len(content)}文字 - {repr(content)}")
-            
             # 改行削除
             if '\n' in content:
-                logger.warning(f"⚠️ 改行を削除")
                 content = content.replace('\n', ' ').replace('  ', ' ')
             
             # 140文字超過チェック
             if len(content) > 140:
-                logger.warning(f"⚠️ {len(content)}文字を140文字に切り詰め")
+                logger.info(f"📏 {len(content)}文字を140文字に切り詰め")
                 content = content[:140]
             
             logger.info(f"✅ ランダム投稿生成成功 ({len(content)}文字): {content}")
@@ -119,52 +115,33 @@ class GeminiClient:
             config = types.GenerateContentConfig(
                 system_instruction=self.character_prompt,
                 temperature=1.0,
-                max_output_tokens=512,
+                max_output_tokens=1024,  # ← 512→1024 に増量
                 candidate_count=1
             )
             
             # generate_content を使用
-            logger.info(f"🔍 Gemini リクエスト送信: @{username} へのリプライ")
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
                 config=config
             )
             
-            # 🔍 レスポンス詳細をデバッグ
-            logger.info(f"🔍 Gemini レスポンス型: {type(response)}")
-            logger.info(f"🔍 レスポンス構造: candidates={len(response.candidates) if response.candidates else 0}")
-            
+            # finish_reason チェック
             if response.candidates:
-                candidate = response.candidates[0]
-                logger.info(f"🔍 finish_reason: {candidate.finish_reason}")
-                logger.info(f"🔍 safety_ratings: {candidate.safety_ratings if hasattr(candidate, 'safety_ratings') else 'N/A'}")
-                
-                # content.parts をチェック
-                if hasattr(candidate.content, 'parts'):
-                    logger.info(f"🔍 parts数: {len(candidate.content.parts)}")
-                    for i, part in enumerate(candidate.content.parts):
-                        logger.info(f"🔍 part[{i}]: {repr(part.text if hasattr(part, 'text') else str(part))}")
+                finish_reason = response.candidates[0].finish_reason
+                if finish_reason != types.FinishReason.STOP:
+                    logger.warning(f"⚠️ finish_reason: {finish_reason} (MAX_TOKENSの可能性)")
             
             # テキスト取得
             content = response.text.strip()
             
-            # デバッグログ
-            logger.info(f"🔍 response.text結果: {len(content)}文字 - {repr(content)}")
-            
             # 改行削除
             if '\n' in content:
-                logger.warning(f"⚠️ 改行を削除")
                 content = content.replace('\n', ' ').replace('  ', ' ')
-            
-            # 短すぎるチェック (30文字未満は異常)
-            if len(content) < 30:
-                logger.warning(f"⚠️ 生成テキストが短すぎます ({len(content)}文字)")
-                logger.warning(f"⚠️ finish_reason が STOP 以外の可能性を確認してください")
             
             # 140文字超過チェック
             if len(content) > 140:
-                logger.warning(f"⚠️ {len(content)}文字を140文字に切り詰め")
+                logger.info(f"📏 {len(content)}文字を140文字に切り詰め")
                 content = content[:140]
             
             logger.info(f"✅ リプライ生成成功 ({len(content)}文字): {content}")
