@@ -47,4 +47,4 @@ wheels/
 Thumbs.db
 
 # 設定ファイル (実環境用)
-config.yaml
+#config.yaml
