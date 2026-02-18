@@ -78,7 +78,7 @@ class MisskeyClient:
     async def follow_user(self, user_id: str):
         """ユーザーをフォロー"""
         try:
-            self.client.following_create(userId=user_id)
+            self.client.following_create(user_id)
             logger.info(f"フォロー成功: {user_id}")
         except Exception as e:
             logger.error(f"フォローエラー ({user_id}): {e}")
@@ -87,7 +87,7 @@ class MisskeyClient:
     async def unfollow_user(self, user_id: str):
         """ユーザーのフォローを解除"""
         try:
-            self.client.following_delete(userId=user_id)
+            self.client.following_delete(user_id)
             logger.info(f"フォロー解除成功: {user_id}")
         except Exception as e:
             logger.error(f"フォロー解除エラー ({user_id}): {e}")

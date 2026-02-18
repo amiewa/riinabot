@@ -69,10 +69,15 @@ class ReplyManager:
         - キーワードフォローバック検出
         - リプライ生成
         """
-        user = mention.get('user', {})
-        user_id = user.get('id')
-        username = user.get('username')
-        text = mention.get('text', '')
+        # mention が None や非dict の場合を防御
+        if not isinstance(mention, dict):
+            logger.warning(f"⚠️ メンションデータが不正 (type={type(mention).__name__}): {mention}")
+            return
+        
+        user = mention.get('user') or {}
+        user_id = user.get('id') if isinstance(user, dict) else None
+        username = user.get('username') if isinstance(user, dict) else None
+        text = mention.get('text') or ''
         
         logger.info(f"📩 メンション受信: @{username} - {text[:50]}...")
         
@@ -120,10 +125,10 @@ class ReplyManager:
         - レート制限チェック
         - Gemini返信生成
         """
-        user = mention.get('user', {})
-        user_id = user.get('id')
-        username = user.get('username')
-        text = mention.get('text', '')
+        user = mention.get('user') or {}
+        user_id = user.get('id') if isinstance(user, dict) else None
+        username = user.get('username') if isinstance(user, dict) else None
+        text = mention.get('text') or ''
         mention_id = mention.get('id')
         
         try:

@@ -137,8 +137,14 @@ class RiinaBot:
             for time_key in time_keys:
                 try:
                     hour, minute = time_key.split(":")
+                    
+                    # async関数をlambdaで包むとawaitされないため、
+                    # 引数束縛用のasyncラッパーを生成する
+                    async def _make_scheduled_job(tk=time_key):
+                        await self.scheduled_post_manager.post_scheduled(tk)
+                    
                     self.scheduler.add_job(
-                        lambda tk=time_key: self.scheduled_post_manager.post_scheduled(tk),
+                        _make_scheduled_job,
                         trigger=CronTrigger(hour=hour, minute=minute),
                         id=f'scheduled_{time_key}',
                         name=f'定時投稿 {time_key}'
@@ -155,8 +161,11 @@ class RiinaBot:
             cleanup_time = bot_config.get("maintenance.cleanup_time", "03:00")
             cleanup_days = bot_config.get("maintenance.cleanup_days", 30)
             hour, minute = cleanup_time.split(":")
+            async def _cleanup_old_records():
+                await self.db_maintenance.cleanup_old_records(cleanup_days)
+            
             self.scheduler.add_job(
-                lambda: self.db_maintenance.cleanup_old_records(cleanup_days),
+                _cleanup_old_records,
                 trigger=CronTrigger(hour=hour, minute=minute),
                 id='db_cleanup',
                 name='DB古いレコード削除'
