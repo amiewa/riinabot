@@ -43,8 +43,13 @@ class ScheduledPostManager:
             content = random.choice(messages)
             
             # Misskeyに投稿
-            note = await self.misskey.post_note(content)
-            note_id = note.get('createdNote', {}).get('id', 'unknown')
+            response = await self.misskey.send_note(content)
+            
+            # レスポンスからノートIDを取得
+            if isinstance(response, dict):
+                note_id = response.get('createdNote', {}).get('id', 'unknown')
+            else:
+                note_id = str(response) if response else 'unknown'
             
             # データベースに記録
             await self.db.add_post(note_id, f"scheduled_{time_key}", content)
