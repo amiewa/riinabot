@@ -89,7 +89,7 @@ class StreamingManager:
                         except json.JSONDecodeError as e:
                             logger.error(f"JSON解析エラー: {e}")
                         except Exception as e:
-                            logger.error(f"メッセージ処理エラー: {e}")
+                            logger.exception(f"メッセージ処理エラー: {e}")
             
             except websockets.exceptions.ConnectionClosed:
                 logger.warning("WebSocket接続が切断されました")
@@ -124,7 +124,7 @@ class StreamingManager:
     async def _handle_message(self, data: dict):
         """WebSocketメッセージ処理"""
         msg_type = data.get('type')
-        body = data.get('body', {})
+        body = data.get('body') or {}
         
         logger.debug(f"WebSocketメッセージ受信: type={msg_type}")
         
@@ -132,7 +132,7 @@ class StreamingManager:
         if msg_type == 'channel':
             channel_id = body.get('id')
             event_type = body.get('type')
-            event_body = body.get('body', {})
+            event_body = body.get('body') or {}
             
             if channel_id == 'main':
                 await self._handle_main_event(event_type, event_body)
@@ -141,9 +141,14 @@ class StreamingManager:
         elif msg_type == 'connected':
             logger.info("✅ チャンネル接続完了")
     
-    async def _handle_main_event(self, event_type: str, event_body: dict):
+    async def _handle_main_event(self, event_type: str, event_body):
         """mainストリームイベント処理"""
         logger.debug(f"イベント受信: {event_type}")
+        
+        # event_body が None や非dict の場合を防御
+        if not isinstance(event_body, dict):
+            logger.warning(f"⚠️ event_body が不正 (type={type(event_body).__name__}, event={event_type}): {event_body}")
+            return
         
         # メンション通知
         if event_type == 'mention':
